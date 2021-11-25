@@ -71,23 +71,18 @@ void print_dump(const void *data, int len)
     printf("\n");
 }
 
-static uint64_t xtea_enc(crypt64_cipher_t *ctx, uint64_t q)
+uint64_t crypt64_cipher(uint64_t pt, void *ctx)
 {
-    return xtea_ecb(q);
+    return xtea_ecb(pt);
 }
 
 static void test_vector(const xtea_eax_testvector_t *v)
 {
-    crypt64_cipher_t enc =
-    {
-        .ecb = xtea_enc,
-    };
-
     crypt64_eax_t ctx;
 
     xtea_install_key(v->key);
 
-    crypt64_eax_init(&ctx, &enc, v->nonce, v->noncelen);
+    crypt64_eax_init(&ctx, NULL, v->nonce, v->noncelen);
 
     uint8_t pt[256];
 
