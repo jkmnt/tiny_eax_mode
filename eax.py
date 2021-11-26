@@ -25,13 +25,13 @@ def ctr(cfg, key, data, nonce):
     enc = cfg.ECB(key)
     out = b''
 
-    nonce_int = int.from_bytes(nonce, byteorder=cfg.ENDIAN, signed=False)
+    nonce_int = int.from_bytes(nonce, cfg.ENDIAN, signed=False)
 
     cnt = 0
     for i in range(0, len(data), cfg.BLOCKSIZE):
         block = data[i:i+cfg.BLOCKSIZE]
         k = (nonce_int + cnt) & cfg.BLOCKSIZE_MASK
-        k = k.to_bytes(cfg.BLOCKSIZE, byteorder=cfg.ENDIAN)
+        k = k.to_bytes(cfg.BLOCKSIZE, cfg.ENDIAN)
         xorbuf = enc.run(k)
         out += xorstrings(block, xorbuf)
         cnt += 1
@@ -41,13 +41,13 @@ def omac(cfg, key, data, k):
     enc = cfg.ECB(key)
 
     L = enc.run(bytes([0] * cfg.BLOCKSIZE))
-    L_int = int.from_bytes(L, byteorder=cfg.ENDIAN, signed=False)
+    L_int = int.from_bytes(L, cfg.ENDIAN, signed=False)
 
     L2_int = gf_double(L_int, cfg.BLOCKSIZE)
     L4_int = gf_double(L2_int, cfg.BLOCKSIZE)
 
-    L2 = L2_int.to_bytes(cfg.BLOCKSIZE, byteorder=cfg.ENDIAN)
-    L4 = L4_int.to_bytes(cfg.BLOCKSIZE, byteorder=cfg.ENDIAN)
+    L2 = L2_int.to_bytes(cfg.BLOCKSIZE, cfg.ENDIAN)
+    L4 = L4_int.to_bytes(cfg.BLOCKSIZE, cfg.ENDIAN)
 
     data = bytes([0] * (cfg.BLOCKSIZE - 1) + [k]) + data
     data = bytearray(data)

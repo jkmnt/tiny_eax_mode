@@ -5,14 +5,14 @@ class OMAC_stream:
     def __init__(self, cfg, key, k):
         enc = cfg.ECB(key)
         L = enc.run(bytes([0] * cfg.BLOCKSIZE))
-        L_int = int.from_bytes(L, byteorder=cfg.ENDIAN, signed=False)
+        L_int = int.from_bytes(L, cfg.ENDIAN, signed=False)
 
         L2_int = gf_double(L_int, cfg.BLOCKSIZE)
         L4_int = gf_double(L2_int, cfg.BLOCKSIZE)
 
         self.cfg = cfg
-        self.L2 = L2_int.to_bytes(cfg.BLOCKSIZE, byteorder=cfg.ENDIAN)
-        self.L4 = L4_int.to_bytes(cfg.BLOCKSIZE, byteorder=cfg.ENDIAN)
+        self.L2 = L2_int.to_bytes(cfg.BLOCKSIZE, cfg.ENDIAN)
+        self.L4 = L4_int.to_bytes(cfg.BLOCKSIZE, cfg.ENDIAN)
 
         self.enc = enc
         self.readyblock = bytes([0] * (cfg.BLOCKSIZE - 1) + [k])
@@ -52,7 +52,7 @@ class OMAC_stream:
 class CTR_stream:
     def __init__(self, cfg, key, nonce):
         enc = cfg.ECB(key)
-        nonce_int = int.from_bytes(nonce, byteorder=cfg.ENDIAN, signed=False)
+        nonce_int = int.from_bytes(nonce, cfg.ENDIAN, signed=False)
 
         self.cfg = cfg
         self.enc = enc
@@ -64,7 +64,7 @@ class CTR_stream:
         cfg = self.cfg
         if self.pos % cfg.BLOCKSIZE == 0:
             counter = (self.nonce + self.pos // cfg.BLOCKSIZE) & cfg.BLOCKSIZE_MASK
-            counter = counter.to_bytes(cfg.BLOCKSIZE, byteorder=cfg.ENDIAN)
+            counter = counter.to_bytes(cfg.BLOCKSIZE, cfg.ENDIAN)
             self.xorbuf = self.enc.run(counter)
 
         pt = self.xorbuf[self.pos % cfg.BLOCKSIZE] ^ byte
