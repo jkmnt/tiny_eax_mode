@@ -77,6 +77,14 @@ def eax_enc(cfg, key, nonce, header, pt):
     tag = xorstrings(xorstrings(N, C), H)
     return (ct, tag)
 
+# authenticate, but do not encrypt plaintext
+def eax_just_auth(cfg, key, nonce, header, pt):
+    N = omac(cfg, key, nonce, 0)
+    H = omac(cfg, key, header, 1)
+    C = omac(cfg, key, pt, 2)
+    tag = xorstrings(xorstrings(N, C), H)
+    return (pt, tag)
+
 
 def eax_dec(cfg, key, nonce, header, ct):
     N = omac(cfg, key, nonce, 0)
