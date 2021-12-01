@@ -1,5 +1,5 @@
-#ifndef _AES_H_
-#define _AES_H_
+#ifndef _AES128_H_
+#define _AES128_H_
 
 #define AES128_KMSTORE_NWORDS 8
 

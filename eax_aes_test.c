@@ -4,7 +4,7 @@
 #include <stdint.h>
 
 #include "eax128.h"
-#include "aes.h"
+#include "aes128.h"
 
 #include "vectors_eax_aes.h"
 
@@ -55,7 +55,7 @@ void print_dump(const void *data, int len)
     printf("\n");
 }
 
-extern void eax128_cipher(uint8_t block[16], void *ctx)
+extern void eax128_cipher(void *ctx, uint8_t block[16])
 {
     aes128_encrypt_ecb(&aes_kmstore, block);
 }

@@ -103,7 +103,7 @@ void eax128_omac_process(eax128_omac_t *ctx, int byte)
     if (ctx->bytepos == 0)
     {
         xor128(&ctx->mac, &ctx->block);
-        eax128_cipher(ctx->mac.b, ctx->cipher_ctx);
+        eax128_cipher(ctx->cipher_ctx, ctx->mac.b);
         ctx->block.q[0] = 0;
         ctx->block.q[1] = 0;
     }
@@ -115,7 +115,7 @@ void eax128_omac_process(eax128_omac_t *ctx, int byte)
 eax128_block_t *eax128_omac_digest(eax128_omac_t *ctx)
 {
     eax128_block_t tail = {0};
-    eax128_cipher(tail.b, ctx->cipher_ctx);
+    eax128_cipher(ctx->cipher_ctx, tail.b);
     gf_double(&tail);
 
     if (ctx->bytepos != 0)
@@ -127,7 +127,7 @@ eax128_block_t *eax128_omac_digest(eax128_omac_t *ctx)
     xor128(&ctx->block, &tail);
     memset(&tail, 0, sizeof(tail));
     xor128(&ctx->mac, &ctx->block);
-    eax128_cipher(ctx->mac.b, ctx->cipher_ctx);
+    eax128_cipher(ctx->cipher_ctx, ctx->mac.b);
 
     return &ctx->mac;
 }
@@ -153,7 +153,7 @@ int eax128_ctr_process(eax128_ctr_t *ctx, int pos, int byte)
     {
         ctx->blocknum = blocknum;
         add_ctr(&ctx->xorbuf, &ctx->nonce, blocknum);
-        eax128_cipher(ctx->xorbuf.b, ctx->cipher_ctx);
+        eax128_cipher(ctx->cipher_ctx, ctx->xorbuf.b);
     }
 
     return ctx->xorbuf.b[pos % 16] ^ byte;
@@ -203,10 +203,11 @@ int eax128_decrypt_ct(eax128_t *ctx, int pos, int byte)
 void eax128_digest(eax128_t *ctx, uint8_t digest[16])
 {
     eax128_block_t *tag = (eax128_block_t *)(void *)digest;
-    memset(tag, 0, 16);
+
     eax128_omac_digest(&ctx->ctomac);
-    xor128(tag, &ctx->ctomac.mac);
     eax128_omac_digest(&ctx->headermac);
+
+    *tag = ctx->ctomac.mac;
     xor128(tag, &ctx->headermac.mac);
     xor128(tag, &ctx->ctr.nonce);
 

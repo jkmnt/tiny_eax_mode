@@ -41,7 +41,7 @@ void eax64_omac_process(eax64_omac_t *ctx, int byte)
 {
     if (ctx->bytepos == 0)
     {
-        ctx->mac = eax64_cipher(ctx->block.q ^ ctx->mac, ctx->cipher_ctx);
+        ctx->mac = eax64_cipher(ctx->cipher_ctx, ctx->block.q ^ ctx->mac);
         ctx->block.q = 0;
 
     }
@@ -52,7 +52,7 @@ void eax64_omac_process(eax64_omac_t *ctx, int byte)
 
 uint64_t eax64_omac_digest(eax64_omac_t *ctx)
 {
-    uint64_t tail = eax64_cipher(0, ctx->cipher_ctx);
+    uint64_t tail = eax64_cipher(ctx->cipher_ctx, 0);
     tail = gf_double(tail);
 
     if (ctx->bytepos != 0)
@@ -61,7 +61,7 @@ uint64_t eax64_omac_digest(eax64_omac_t *ctx)
         ctx->block.b[ctx->bytepos] = 0x80;
     }
 
-    ctx->mac = eax64_cipher(ctx->block.q ^ tail ^ ctx->mac, ctx->cipher_ctx);
+    ctx->mac = eax64_cipher(ctx->cipher_ctx, ctx->block.q ^ tail ^ ctx->mac);
 
     return ctx->mac;
 }
@@ -97,7 +97,7 @@ int eax64_ctr_process(eax64_ctr_t *ctx, int pos, int byte)
         if (BIG_TAIL)
             a = byterev64(a);
 
-        ctx->xorbuf.q = eax64_cipher(a, ctx->cipher_ctx);
+        ctx->xorbuf.q = eax64_cipher(ctx->cipher_ctx, a);
     }
 
     return ctx->xorbuf.b[pos % 8] ^ byte;

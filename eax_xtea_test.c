@@ -71,7 +71,7 @@ void print_dump(const void *data, int len)
     printf("\n");
 }
 
-uint64_t eax64_cipher(uint64_t pt, void *ctx)
+uint64_t eax64_cipher(void *ctx, uint64_t pt)
 {
     return xtea_ecb(pt);
 }

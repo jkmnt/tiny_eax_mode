@@ -20,7 +20,7 @@
 */
 
 #include <stdint.h>
-#include "aes.h"
+#include "aes128.h"
 
 
 static inline uint32_t rotr32(uint32_t x, int r)

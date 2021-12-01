@@ -37,7 +37,7 @@ typedef struct
 
 // The external cipher function to be linked.
 // ctx is the argument passed to cipher. i.e. it may be used to distinguish cipher instances
-extern uint64_t eax64_cipher(uint64_t pt, void *ctx);
+extern uint64_t eax64_cipher(void *ctx, uint64_t pt);
 
 void eax64_init(eax64_t *ctx, void *cipher_ctx, const uint8_t *nonce, int nonce_len);
 void eax64_auth_ct(eax64_t *ctx, int byte);
