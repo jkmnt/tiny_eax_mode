@@ -10,26 +10,26 @@
 
 typedef struct
 {
-    uint32_t words[AES128_KMCTX_NWORDS];
-} aes_ctx_t;
+    uint32_t words[AES128_KMSTORE_NWORDS];
+} aes_kmstore_t;
 
-static aes_ctx_t aes_ctx;
+static aes_kmstore_t aes_kmstore;
 
 void aes128_save_km(void *ctx, int i, uint32_t w)
 {
-    aes_ctx_t *store = ctx;
+    aes_kmstore_t *store = ctx;
     store->words[i] = w;
 }
 
 uint32_t aes128_load_km(void *ctx, int i)
 {
-    const aes_ctx_t *store = ctx;
+    const aes_kmstore_t *store = ctx;
     return store->words[i];
 }
 
 void aes_install_key(const uint8_t *key)
 {
-    aes128_set_key(&aes_ctx, key);
+    aes128_set_key(&aes_kmstore, key);
 }
 
 
@@ -57,7 +57,7 @@ void print_dump(const void *data, int len)
 
 extern void eax128_cipher(uint8_t block[16], void *ctx)
 {
-    aes128_encrypt_ecb(&aes_ctx, block);
+    aes128_encrypt_ecb(&aes_kmstore, block);
 }
 
 static void test_vector(const testvector_t *v)
@@ -116,7 +116,7 @@ static void test_ctr_ovf(void)
     eax128_ctr_t ctr;
 
     aes_install_key(key);
-    eax128_ctr_init(&ctr, &aes_ctx, nonce);
+    eax128_ctr_init(&ctr, &aes_kmstore, nonce);
 
     for (int i = 0; i < sizeof(pt); i++)
     {

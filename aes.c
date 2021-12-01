@@ -13,6 +13,8 @@
 
    The storage may be implemented in some hardware registers (think TRESOR of linux-x86).
 
+   It's assumed the architecture is little-endian and CPU handles unaligned access just fine.
+
    Yes, this AES is quite slow :-)
 
 */
@@ -26,16 +28,11 @@ static inline uint32_t rotr32(uint32_t x, int r)
     return(x >> r) | (x << (32 - r));
 }
 
-static inline uint32_t rotl32(uint32_t x, int r)
-{
-    return(x << r) | (x >> (32 - r));
-}
-
 typedef union
 {
     uint8_t mx[4][4];
     uint32_t cols[4];
-} state_t;
+} aes128_state_t;
 
 
 static const uint8_t sbox[256] =
@@ -62,7 +59,7 @@ static const uint8_t sbox[256] =
 static const uint8_t rconrev[10] = { 0x36, 0x1b, 0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01};
 
 
-static void shift_and_subst(state_t* state)
+static void shift_and_subst(aes128_state_t *state)
 {
     int tmp;
 
@@ -99,7 +96,7 @@ static uint32_t xtime32(uint32_t x)
     return ((x << 1) & 0xFEFEFEFE) ^ (((x >> 7) & 0x01010101) * 0x1B);
 }
 
-static void mix_columns(state_t* state)
+static void mix_columns(aes128_state_t *state)
 {
     for (int i = 0; i < 4; ++i)
     {
@@ -109,7 +106,7 @@ static void mix_columns(state_t* state)
 }
 
 
-static void schedule_and_add_key(state_t *state, void *kmctx, int round)
+static void schedule_and_add_key(aes128_state_t *state, void *kmctx, int round)
 {
     uint32_t k3 = aes128_load_km(kmctx, 3);
 
@@ -149,7 +146,7 @@ void aes128_set_key(void *kmctx, const uint8_t key[16])
 
 void aes128_encrypt_ecb(void *kmctx, uint8_t buf[16])
 {
-    state_t *state = (state_t*)buf;
+    aes128_state_t *state = (aes128_state_t *)buf;
 
     // copy key
     uint32_t tmp;
