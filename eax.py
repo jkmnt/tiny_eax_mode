@@ -21,7 +21,7 @@ def xorstrings(b0, b1):
     return bytes([a^b for a, b in zip(b0, b1)])
 
 # simple pythonic implementations. the streamlike interface is in eax_stream
-def ctr(cfg, key, data, nonce):
+def ctr(cfg, key, nonce, data):
     enc = cfg.ECB(key)
     out = b''
 
@@ -46,8 +46,12 @@ def omac(cfg, key, data, k):
     L2_int = gf_double(L_int, cfg.BLOCKSIZE)
     L4_int = gf_double(L2_int, cfg.BLOCKSIZE)
 
+    import binascii
+
     L2 = L2_int.to_bytes(cfg.BLOCKSIZE, cfg.ENDIAN)
     L4 = L4_int.to_bytes(cfg.BLOCKSIZE, cfg.ENDIAN)
+
+#   print(binascii.hexlify(L2))
 
     data = bytes([0] * (cfg.BLOCKSIZE - 1) + [k]) + data
     data = bytearray(data)
@@ -72,7 +76,7 @@ def omac(cfg, key, data, k):
 def eax_enc(cfg, key, nonce, header, pt):
     N = omac(cfg, key, nonce, 0)
     H = omac(cfg, key, header, 1)
-    ct = ctr(cfg, key, pt, N)
+    ct = ctr(cfg, key, N, pt)
     C = omac(cfg, key, ct, 2)
     tag = xorstrings(xorstrings(N, C), H)
     return (ct, tag)
@@ -91,5 +95,5 @@ def eax_dec(cfg, key, nonce, header, ct):
     H = omac(cfg, key, header, 1)
     C = omac(cfg, key, ct, 2)
     tag_local = xorstrings(xorstrings(N, C), H)
-    pt = ctr(cfg, key, ct, N)
+    pt = ctr(cfg, key, N, ct)
     return (pt, tag_local)

@@ -78,7 +78,7 @@ def omac_stream(cfg, key, data, k):
         s.process_byte(b)
     return s.digest()
 
-def ctr_stream(cfg, key, data, nonce):
+def ctr_stream(cfg, key, nonce, data):
     s = CTR_stream(cfg, key, nonce)
     out = b''
     for b in data:
@@ -89,7 +89,7 @@ def ctr_stream(cfg, key, data, nonce):
 def eax_enc(cfg, key, nonce, header, pt):
     N = omac_stream(cfg, key, nonce, 0)
     H = omac_stream(cfg, key, header, 1)
-    ct = ctr_stream(cfg, key, pt, N)
+    ct = ctr_stream(cfg, key, N, pt)
     C = omac_stream(cfg, key, ct, 2)
     tag = xorstrings(xorstrings(N, C), H)
     return (ct, tag)
@@ -99,5 +99,5 @@ def eax_dec(cfg, key, nonce, header, ct):
     H = omac_stream(cfg, key, header, 1)
     C = omac_stream(cfg, key, ct, 2)
     tag_local = xorstrings(xorstrings(N, C), H)
-    pt = ctr_stream(cfg, key, ct, N)
+    pt = ctr_stream(cfg, key, N, ct)
     return (pt, tag_local)

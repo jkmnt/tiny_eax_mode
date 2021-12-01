@@ -3,9 +3,9 @@
 #include <stdlib.h>
 #include <stdint.h>
 
-#include "crypt64.h"
+#include "eax64.h"
 
-#include "vectors.h"
+#include "vectors_eax_xtea.h"
 
 static struct
 {
@@ -71,33 +71,33 @@ void print_dump(const void *data, int len)
     printf("\n");
 }
 
-uint64_t crypt64_cipher(uint64_t pt, void *ctx)
+uint64_t eax64_cipher(uint64_t pt, void *ctx)
 {
     return xtea_ecb(pt);
 }
 
-static void test_vector(const xtea_eax_testvector_t *v)
+static void test_vector(const testvector_t *v)
 {
-    crypt64_eax_t ctx;
+    eax64_t ctx;
 
     xtea_install_key(v->key);
 
-    crypt64_eax_init(&ctx, NULL, v->nonce, v->noncelen);
+    eax64_init(&ctx, NULL, v->nonce, v->noncelen);
 
     uint8_t pt[256];
 
     for (int i = 0; i < v->headerlen; i++)
-        crypt64_eax_auth_header(&ctx, v->header[i]);
+        eax64_auth_header(&ctx, v->header[i]);
 
     for (int i = 0; i < v->ctlen; i++)
-        crypt64_eax_auth_ct(&ctx, v->ct[i]);
+        eax64_auth_ct(&ctx, v->ct[i]);
 
     for (int i = 0; i < v->ctlen; i++)
     {
-        pt[i] = crypt64_eax_decrypt_ct(&ctx, i, v->ct[i]);
+        pt[i] = eax64_decrypt_ct(&ctx, i, v->ct[i]);
     }
 
-    uint64_t local_tag = crypt64_eax_digest(&ctx);
+    uint64_t local_tag = eax64_digest(&ctx);
 
     if (memcmp(pt, v->pt, v->ptlen) != 0)
     {
@@ -120,8 +120,8 @@ static void test_vector(const xtea_eax_testvector_t *v)
 int main(void)
 {
 
-    for (int i = 0; i < sizeof(xtea_eax_testvectors) / sizeof(xtea_eax_testvectors[0]); i++)
-        test_vector(&xtea_eax_testvectors[i]);
+    for (int i = 0; i < sizeof(testvectors) / sizeof(testvectors[0]); i++)
+        test_vector(&testvectors[i]);
 
     printf("Ok");
     return 0;
