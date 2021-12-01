@@ -1,6 +1,19 @@
 /*
 
-   derived from https://github.com/kokke/tiny-AES-c and other public domain sources
+   Derived from https://github.com/kokke/tiny-AES-c and other public domain sources.
+
+   This implementation is quite special.
+   It tries hard to do all the processing on processor registers
+   and avoid using RAM at all, even stack. The only thing in RAM is the (in-place) mutated 16-byte
+   encryption state.
+
+   The key material is loaded on demand, keys are not pre-scheduled but expanded in place.
+   The user is resposible for providing aes128_load_km/aes128_save_km accessors to 8 words
+   of the key storage.
+
+   The storage may be implemented in some hardware registers (think TRESOR of linux-x86).
+
+   Yes, this AES is quite slow :-)
 
 */
 
