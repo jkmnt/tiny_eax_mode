@@ -2,9 +2,32 @@
 #include <string.h>
 #include "eax64.h"
 
+#define BIG_CTR     0
+#define BIG_TAIL    0
+
+static uint64_t byterev64(uint64_t a)
+{
+    return    (((a >>  0) & 0xff) << 56)
+            | (((a >>  8) & 0xff) << 48)
+            | (((a >> 16) & 0xff) << 40)
+            | (((a >> 24) & 0xff) << 32)
+            | (((a >> 32) & 0xff) << 24)
+            | (((a >> 40) & 0xff) << 16)
+            | (((a >> 48) & 0xff) <<  8)
+            | (((a >> 56) & 0xff) <<  0);
+}
+
 static uint64_t gf_double(uint64_t a)
 {
-    return (a << 1) ^ ((a >> 63) * 0x1B);
+    if (BIG_TAIL)
+        a = byterev64(a);
+
+    a = (a << 1) ^ ((a >> 63) * 0x1B);
+
+    if (BIG_TAIL)
+        a = byterev64(a);
+
+    return a;
 }
 
 void eax64_omac_init(eax64_omac_t *ctx, void *cipher_ctx, int k)
@@ -63,7 +86,18 @@ int eax64_ctr_process(eax64_ctr_t *ctx, int pos, int byte)
     if (blocknum != ctx->blocknum)    // change of block
     {
         ctx->blocknum = blocknum;
-        ctx->xorbuf.q = eax64_cipher(ctx->nonce + blocknum, ctx->cipher_ctx);
+
+        uint64_t a = ctx->nonce;
+
+        if (BIG_TAIL)
+            a = byterev64(a);
+
+        a += blocknum;
+
+        if (BIG_TAIL)
+            a = byterev64(a);
+
+        ctx->xorbuf.q = eax64_cipher(a, ctx->cipher_ctx);
     }
 
     return ctx->xorbuf.b[pos % 8] ^ byte;

@@ -2,6 +2,9 @@
 #include <string.h>
 #include "eax128.h"
 
+#define BIG_CTR     1
+#define BIG_TAIL    1
+
 static uint64_t byterev64(uint64_t a)
 {
     return    (((a >>  0) & 0xff) << 56)
@@ -14,31 +17,69 @@ static uint64_t byterev64(uint64_t a)
             | (((a >> 56) & 0xff) <<  0);
 }
 
-static void gf_double_be(eax128_block_t *block)
+static void gf_double(eax128_block_t *block)
 {
-    uint64_t q1 = byterev64(block->q[0]);
-    uint64_t q0 = byterev64(block->q[1]);
+    uint64_t q1;
+    uint64_t q0;
+
+    if (BIG_TAIL)
+    {
+        q0 = byterev64(block->q[1]);
+        q1 = byterev64(block->q[0]);
+    }
+    else
+    {
+        q1 = block->q[1];
+        q0 = block->q[0];
+    }
 
     uint32_t m = (q1 >> 63) * 0x87;
     q1 = (q1 << 1) ^ (q0 >> 63);
     q0 = (q0 << 1) ^ m;
 
-    block->q[0] = byterev64(q1);
-    block->q[1] = byterev64(q0);
+    if (BIG_TAIL)
+    {
+        block->q[0] = byterev64(q1);
+        block->q[1] = byterev64(q0);
+    }
+    else
+    {
+        block->q[0] = q0;
+        block->q[1] = q1;
+    }
 }
 
-static void add_be(eax128_block_t *out, const eax128_block_t *a, int inc)
+static void add_ctr(eax128_block_t *out, const eax128_block_t *a, int inc)
 {
-    uint64_t q1 = byterev64(a->q[0]);
-    uint64_t q0 = byterev64(a->q[1]);
+    uint64_t q1;
+    uint64_t q0;
+
+    if (BIG_CTR)
+    {
+        q0 = byterev64(a->q[1]);
+        q1 = byterev64(a->q[0]);
+    }
+    else
+    {
+        q1 = a->q[1];
+        q0 = a->q[0];
+    }
 
     q0 += inc;
 
     if (q0 < inc)
         q1 += 1;
 
-    out->q[0] = byterev64(q1);
-    out->q[1] = byterev64(q0);
+    if (BIG_CTR)
+    {
+        out->q[0] = byterev64(q1);
+        out->q[1] = byterev64(q0);
+    }
+    else
+    {
+        out->q[0] = q0;
+        out->q[1] = q1;
+    }
 }
 
 
@@ -75,12 +116,12 @@ eax128_block_t *eax128_omac_digest(eax128_omac_t *ctx)
 {
     eax128_block_t tail = {0};
     eax128_cipher(tail.b, ctx->cipher_ctx);
-    gf_double_be(&tail);
+    gf_double(&tail);
 
     if (ctx->bytepos != 0)
     {
         ctx->block.b[ctx->bytepos] = 0x80;
-        gf_double_be(&tail);
+        gf_double(&tail);
     }
 
     xor128(&ctx->block, &tail);
@@ -111,7 +152,7 @@ int eax128_ctr_process(eax128_ctr_t *ctx, int pos, int byte)
     if (blocknum != ctx->blocknum)    // change of block
     {
         ctx->blocknum = blocknum;
-        add_be(&ctx->xorbuf, &ctx->nonce, blocknum);
+        add_ctr(&ctx->xorbuf, &ctx->nonce, blocknum);
         eax128_cipher(ctx->xorbuf.b, ctx->cipher_ctx);
     }
 
