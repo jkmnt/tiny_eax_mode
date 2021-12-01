@@ -136,7 +136,7 @@ static void schedule_and_add_key(aes128_state_t *state, void *kmctx, int round)
 
 void aes128_set_key(void *kmctx, const uint8_t key[16])
 {
-    const uint32_t *k = (const uint32_t *)key;
+    const uint32_t *k = (const uint32_t *)(void *)key;
 
     aes128_save_km(kmctx, 4, k[0]);
     aes128_save_km(kmctx, 5, k[1]);
@@ -146,7 +146,7 @@ void aes128_set_key(void *kmctx, const uint8_t key[16])
 
 void aes128_encrypt_ecb(void *kmctx, uint8_t buf[16])
 {
-    aes128_state_t *state = (aes128_state_t *)buf;
+    aes128_state_t *state = (aes128_state_t *)(void *)buf;
 
     // copy key
     uint32_t tmp;

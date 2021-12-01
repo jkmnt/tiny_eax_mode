@@ -67,7 +67,7 @@ static void add_ctr(eax128_block_t *out, const eax128_block_t *a, int inc)
 
     q0 += inc;
 
-    if (q0 < inc)
+    if (q0 < (uint64_t)inc)
         q1 += 1;
 
     if (BIG_CTR)
@@ -202,7 +202,7 @@ int eax128_decrypt_ct(eax128_t *ctx, int pos, int byte)
 
 void eax128_digest(eax128_t *ctx, uint8_t digest[16])
 {
-    eax128_block_t *tag = (eax128_block_t *)digest;
+    eax128_block_t *tag = (eax128_block_t *)(void *)digest;
     memset(tag, 0, 16);
     eax128_omac_digest(&ctx->ctomac);
     xor128(tag, &ctx->ctomac.mac);
