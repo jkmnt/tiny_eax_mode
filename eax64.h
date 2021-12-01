@@ -30,8 +30,8 @@ typedef struct
 
 typedef struct
 {
-    eax64_omac_t ctomac;
-    eax64_omac_t headermac;
+    eax64_omac_t domac;
+    eax64_omac_t homac;
     eax64_ctr_t ctr;
 } eax64_t;
 
@@ -40,9 +40,9 @@ typedef struct
 extern uint64_t eax64_cipher(void *ctx, uint64_t pt);
 
 void eax64_init(eax64_t *ctx, void *cipher_ctx, const uint8_t *nonce, int nonce_len);
-void eax64_auth_ct(eax64_t *ctx, int byte);
+void eax64_auth_data(eax64_t *ctx, int byte);
 void eax64_auth_header(eax64_t *ctx, int byte);
-int eax64_decrypt_ct(eax64_t *ctx, int pos, int byte);
+int eax64_crypt_data(eax64_t *ctx, int pos, int byte);
 uint64_t eax64_digest(eax64_t *ctx);
 void eax64_clear(eax64_t *ctx);
 

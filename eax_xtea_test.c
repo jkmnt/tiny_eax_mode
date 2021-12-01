@@ -90,14 +90,14 @@ static void test_vector(const testvector_t *v)
         eax64_auth_header(&ctx, v->header[i]);
 
     for (int i = 0; i < v->ctlen; i++)
-        eax64_auth_ct(&ctx, v->ct[i]);
+        eax64_auth_data(&ctx, v->ct[i]);
 
     for (int i = 0; i < v->ctlen; i++)
     {
-        pt[i] = eax64_decrypt_ct(&ctx, i, v->ct[i]);
+        pt[i] = eax64_crypt_data(&ctx, i, v->ct[i]);
     }
 
-    uint64_t local_tag = eax64_digest(&ctx);
+    uint64_t tag = eax64_digest(&ctx);
 
     if (memcmp(pt, v->pt, v->ptlen) != 0)
     {
@@ -107,10 +107,10 @@ static void test_vector(const testvector_t *v)
         exit(-1);
     }
 
-    if (memcmp(&local_tag, v->tag, v->taglen) != 0)
+    if (memcmp(&tag, v->tag, v->taglen) != 0)
     {
         print_dump(v->tag, v->taglen);
-        print_dump(&local_tag, 8);
+        print_dump(&tag, 8);
         printf("auth fail\n");
         exit(-1);
     }

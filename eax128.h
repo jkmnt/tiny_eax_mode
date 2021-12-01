@@ -69,8 +69,8 @@ typedef struct
 
 typedef struct
 {
-    eax128_omac_t ctomac;
-    eax128_omac_t headermac;
+    eax128_omac_t domac;
+    eax128_omac_t homac;
     eax128_ctr_t ctr;
 } eax128_t;
 
@@ -82,10 +82,10 @@ extern void eax128_cipher(void *ctx, uint8_t pt[16]);
 
 
 void eax128_init(eax128_t *ctx, void *cipher_ctx, const uint8_t *nonce, int nonce_len);
-void eax128_auth_ct(eax128_t *ctx, int byte);
+void eax128_auth_data(eax128_t *ctx, int byte);
 void eax128_auth_header(eax128_t *ctx, int byte);
-int eax128_decrypt_ct(eax128_t *ctx, int pos, int byte);
-void eax128_digest(eax128_t *ctx, uint8_t digest[8]);
+int eax128_crypt_data(eax128_t *ctx, int pos, int byte);
+void eax128_digest(eax128_t *ctx, uint8_t tag[8]);
 void eax128_clear(eax128_t *ctx);
 
 

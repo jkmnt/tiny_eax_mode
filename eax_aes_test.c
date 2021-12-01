@@ -74,11 +74,11 @@ static void test_vector(const testvector_t *v)
         eax128_auth_header(&ctx, v->header[i]);
 
     for (int i = 0; i < v->ctlen; i++)
-        eax128_auth_ct(&ctx, v->ct[i]);
+        eax128_auth_data(&ctx, v->ct[i]);
 
     for (int i = 0; i < v->ctlen; i++)
     {
-        pt[i] = eax128_decrypt_ct(&ctx, i, v->ct[i]);
+        pt[i] = eax128_crypt_data(&ctx, i, v->ct[i]);
     }
 
     uint8_t local_tag[16];

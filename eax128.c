@@ -171,48 +171,48 @@ void eax128_init(eax128_t *ctx, void *cipher_ctx, const uint8_t *nonce, int nonc
     // the parts of ctx are cleared by called functions
 
     // reuse header omac to avoid stack
-    eax128_omac_t *nonceomac = &ctx->headermac;
+    eax128_omac_t *nomac = &ctx->homac;
 
-    eax128_omac_init(nonceomac, cipher_ctx, 0);
+    eax128_omac_init(nomac, cipher_ctx, 0);
     for (int i = 0; i < nonce_len; i++)
-        eax128_omac_process(nonceomac, nonce[i]);
-    eax128_omac_digest(nonceomac);
-    eax128_ctr_init(&ctx->ctr, cipher_ctx, nonceomac->mac.b);
+        eax128_omac_process(nomac, nonce[i]);
+    eax128_omac_digest(nomac);
+    eax128_ctr_init(&ctx->ctr, cipher_ctx, nomac->mac.b);
 
-    // this init will clear noncemac too
-    eax128_omac_init(&ctx->headermac, cipher_ctx, 1);
-    eax128_omac_init(&ctx->ctomac, cipher_ctx, 2);
+    // this init will clear nonceomac too
+    eax128_omac_init(&ctx->homac, cipher_ctx, 1);
+    eax128_omac_init(&ctx->domac, cipher_ctx, 2);
 }
 
 
-void eax128_auth_ct(eax128_t *ctx, int byte)
+void eax128_auth_data(eax128_t *ctx, int byte)
 {
-    eax128_omac_process(&ctx->ctomac, byte);
+    eax128_omac_process(&ctx->domac, byte);
 }
 
 void eax128_auth_header(eax128_t *ctx, int byte)
 {
-    eax128_omac_process(&ctx->headermac, byte);
+    eax128_omac_process(&ctx->homac, byte);
 }
 
-int eax128_decrypt_ct(eax128_t *ctx, int pos, int byte)
+int eax128_crypt_data(eax128_t *ctx, int pos, int byte)
 {
     return eax128_ctr_process(&ctx->ctr, pos, byte);
 }
 
-void eax128_digest(eax128_t *ctx, uint8_t digest[16])
+void eax128_digest(eax128_t *ctx, uint8_t tag[16])
 {
-    eax128_block_t *tag = (eax128_block_t *)(void *)digest;
+    eax128_block_t *t = (eax128_block_t *)(void *)tag;
 
-    eax128_omac_digest(&ctx->ctomac);
-    eax128_omac_digest(&ctx->headermac);
+    eax128_omac_digest(&ctx->domac);
+    eax128_omac_digest(&ctx->homac);
 
-    *tag = ctx->ctomac.mac;
-    xor128(tag, &ctx->headermac.mac);
-    xor128(tag, &ctx->ctr.nonce);
+    *t = ctx->domac.mac;
+    xor128(t, &ctx->homac.mac);
+    xor128(t, &ctx->ctr.nonce);
 
-    eax128_omac_clear(&ctx->ctomac);
-    eax128_omac_clear(&ctx->headermac);
+    eax128_omac_clear(&ctx->domac);
+    eax128_omac_clear(&ctx->homac);
 }
 
 void eax128_clear(eax128_t *ctx)

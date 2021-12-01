@@ -112,7 +112,7 @@ void eax64_ctr_clear(eax64_ctr_t *ctx)
 void eax64_init(eax64_t *ctx, void *cipher_ctx, const uint8_t *nonce, int nonce_len)
 {
     // reuse header omac to avoid stack
-    eax64_omac_t *nonceomac = &ctx->headermac;
+    eax64_omac_t *nonceomac = &ctx->homac;
     eax64_omac_init(nonceomac, cipher_ctx, 0);
     for (int i = 0; i < nonce_len; i++)
         eax64_omac_process(nonceomac, nonce[i]);
@@ -120,36 +120,36 @@ void eax64_init(eax64_t *ctx, void *cipher_ctx, const uint8_t *nonce, int nonce_
     eax64_ctr_init(&ctx->ctr, cipher_ctx, n);
 
     // this init will clear noncemac too
-    eax64_omac_init(&ctx->headermac, cipher_ctx, 1);
-    eax64_omac_init(&ctx->ctomac, cipher_ctx, 2);
+    eax64_omac_init(&ctx->homac, cipher_ctx, 1);
+    eax64_omac_init(&ctx->domac, cipher_ctx, 2);
 }
 
 
-void eax64_auth_ct(eax64_t *ctx, int byte)
+void eax64_auth_data(eax64_t *ctx, int byte)
 {
-    eax64_omac_process(&ctx->ctomac, byte);
+    eax64_omac_process(&ctx->domac, byte);
 }
 
 void eax64_auth_header(eax64_t *ctx, int byte)
 {
-    eax64_omac_process(&ctx->headermac, byte);
+    eax64_omac_process(&ctx->homac, byte);
 }
 
-int eax64_decrypt_ct(eax64_t *ctx, int pos, int byte)
+int eax64_crypt_data(eax64_t *ctx, int pos, int byte)
 {
     return eax64_ctr_process(&ctx->ctr, pos, byte);
 }
 
 uint64_t eax64_digest(eax64_t *ctx)
 {
-    uint64_t c = eax64_omac_digest(&ctx->ctomac);
-    eax64_omac_clear(&ctx->ctomac);
-    uint64_t h = eax64_omac_digest(&ctx->headermac);
-    eax64_omac_clear(&ctx->headermac);
+    uint64_t c = eax64_omac_digest(&ctx->domac);
+    eax64_omac_clear(&ctx->domac);
+    uint64_t h = eax64_omac_digest(&ctx->homac);
+    eax64_omac_clear(&ctx->homac);
 
-    uint64_t local_tag = c ^ h ^ ctx->ctr.nonce;
+    uint64_t tag = c ^ h ^ ctx->ctr.nonce;
 
-    return local_tag;
+    return tag;
 }
 
 void eax64_clear(eax64_t *ctx)
