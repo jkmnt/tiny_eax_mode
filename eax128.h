@@ -56,7 +56,7 @@ typedef struct
     void *cipher_ctx;
     eax128_block_t mac;
     eax128_block_t block;
-    int bytepos;
+    unsigned int bytepos;
 } eax128_omac_t;
 
 typedef struct
@@ -64,7 +64,7 @@ typedef struct
     void *cipher_ctx;
     eax128_block_t nonce;
     eax128_block_t xorbuf;
-    int blocknum;
+    unsigned int blocknum;
 } eax128_ctr_t;
 
 typedef struct
@@ -81,10 +81,10 @@ typedef struct
 extern void eax128_cipher(void *ctx, uint8_t pt[16]);
 
 
-void eax128_init(eax128_t *ctx, void *cipher_ctx, const uint8_t *nonce, int nonce_len);
+void eax128_init(eax128_t *ctx, void *cipher_ctx, const uint8_t *nonce, unsigned int nonce_len);
 void eax128_auth_data(eax128_t *ctx, int byte);
 void eax128_auth_header(eax128_t *ctx, int byte);
-int eax128_crypt_data(eax128_t *ctx, int pos, int byte);
+int eax128_crypt_data(eax128_t *ctx, unsigned int pos, int byte);
 void eax128_digest(eax128_t *ctx, uint8_t tag[8]);
 void eax128_clear(eax128_t *ctx);
 
@@ -96,7 +96,7 @@ eax128_block_t *eax128_omac_digest(eax128_omac_t *ctx);
 void eax128_omac_clear(eax128_omac_t *ctx);
 
 void eax128_ctr_init(eax128_ctr_t *ctx, void *cipher_ctx, const uint8_t nonce[16]);
-int eax128_ctr_process(eax128_ctr_t *ctx, int pos, int byte);
+int eax128_ctr_process(eax128_ctr_t *ctx, unsigned int pos, int byte);
 void eax128_ctr_clear(eax128_ctr_t *ctx);
 
 

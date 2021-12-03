@@ -33,8 +33,8 @@ static void gf_double(eax128_block_t *block)
         q0 = block->q[0];
     }
 
-    uint32_t m = (q1 >> 63) * 0x87;
-    q1 = (q1 << 1) ^ (q0 >> 63);
+    uint32_t m = (((int32_t)(q1 >> 32)) >> 31) & 0x87;
+    q1 = (q1 << 1) | (q0 >> 63);
     q0 = (q0 << 1) ^ m;
 
     if (BIG_TAIL)
@@ -49,7 +49,7 @@ static void gf_double(eax128_block_t *block)
     }
 }
 
-static void add_ctr(eax128_block_t *out, const eax128_block_t *a, int inc)
+static void add_ctr(eax128_block_t *out, const eax128_block_t *a, uint32_t inc)
 {
     uint64_t q1;
     uint64_t q0;
@@ -114,19 +114,22 @@ void eax128_omac_process(eax128_omac_t *ctx, int byte)
 
 eax128_block_t *eax128_omac_digest(eax128_omac_t *ctx)
 {
-    eax128_block_t tail = {0};
-    eax128_cipher(ctx->cipher_ctx, tail.b);
-    gf_double(&tail);
+    xor128(&ctx->mac, &ctx->block);
+
+    // now block is no longer needed, reuse it as tail
+    eax128_block_t *tail = &ctx->block;
+    tail->q[0] = 0;
+    tail->q[1] = 0;
+    eax128_cipher(ctx->cipher_ctx, tail->b);
+    gf_double(tail);
 
     if (ctx->bytepos != 0)
     {
-        ctx->block.b[ctx->bytepos] = 0x80;
-        gf_double(&tail);
+        ctx->mac.b[ctx->bytepos] ^= 0x80;
+        gf_double(tail);
     }
 
-    xor128(&ctx->block, &tail);
-    memset(&tail, 0, sizeof(tail));
-    xor128(&ctx->mac, &ctx->block);
+    xor128(&ctx->mac, tail);
     eax128_cipher(ctx->cipher_ctx, ctx->mac.b);
 
     return &ctx->mac;
@@ -146,9 +149,9 @@ void eax128_ctr_init(eax128_ctr_t *ctx, void *cipher_ctx, const uint8_t nonce[16
     ctx->cipher_ctx = cipher_ctx;
 }
 
-int eax128_ctr_process(eax128_ctr_t *ctx, int pos, int byte)
+int eax128_ctr_process(eax128_ctr_t *ctx, unsigned int pos, int byte)
 {
-    int blocknum = pos / 16;
+    unsigned int blocknum = pos / 16;
     if (blocknum != ctx->blocknum)    // change of block
     {
         ctx->blocknum = blocknum;
@@ -166,7 +169,7 @@ void eax128_ctr_clear(eax128_ctr_t *ctx)
 }
 
 
-void eax128_init(eax128_t *ctx, void *cipher_ctx, const uint8_t *nonce, int nonce_len)
+void eax128_init(eax128_t *ctx, void *cipher_ctx, const uint8_t *nonce, unsigned int nonce_len)
 {
     // the parts of ctx are cleared by called functions
 
@@ -174,7 +177,7 @@ void eax128_init(eax128_t *ctx, void *cipher_ctx, const uint8_t *nonce, int nonc
     eax128_omac_t *nomac = &ctx->homac;
 
     eax128_omac_init(nomac, cipher_ctx, 0);
-    for (int i = 0; i < nonce_len; i++)
+    for (unsigned int i = 0; i < nonce_len; i++)
         eax128_omac_process(nomac, nonce[i]);
     eax128_omac_digest(nomac);
     eax128_ctr_init(&ctx->ctr, cipher_ctx, nomac->mac.b);
@@ -195,7 +198,7 @@ void eax128_auth_header(eax128_t *ctx, int byte)
     eax128_omac_process(&ctx->homac, byte);
 }
 
-int eax128_crypt_data(eax128_t *ctx, int pos, int byte)
+int eax128_crypt_data(eax128_t *ctx, unsigned int pos, int byte)
 {
     return eax128_ctr_process(&ctx->ctr, pos, byte);
 }

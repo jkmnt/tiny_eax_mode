@@ -56,22 +56,25 @@ static const uint8_t sbox[256] =
 };
 
 
-static const uint8_t rconrev[10] = { 0x36, 0x1b, 0x80, 0x40, 0x20, 0x10, 0x08, 0x04, 0x02, 0x01};
-
-
-static void shift_and_subst(aes128_state_t *state)
+static void addkey_shift_and_subst(aes128_state_t *state, void *kmctx)
 {
+    // non-optimized - too much byte accesses, but ok for now
     int tmp;
 
-    // non-optimized - too much byte accesses, but ok for now
+    state->cols[0] ^= aes128_load_km(kmctx, 0);
     state->mx[0][0] = sbox[state->mx[0][0]];
-    state->mx[1][0] = sbox[state->mx[1][0]];
-    state->mx[2][0] = sbox[state->mx[2][0]];
-    state->mx[3][0] = sbox[state->mx[3][0]];
-
     tmp = state->mx[0][1];
+
+    state->cols[1] ^= aes128_load_km(kmctx, 1);
+    state->mx[1][0] = sbox[state->mx[1][0]];
     state->mx[0][1] = sbox[state->mx[1][1]];
+
+    state->cols[2] ^= aes128_load_km(kmctx, 2);
+    state->mx[2][0] = sbox[state->mx[2][0]];
     state->mx[1][1] = sbox[state->mx[2][1]];
+
+    state->cols[3] ^= aes128_load_km(kmctx, 3);
+    state->mx[3][0] = sbox[state->mx[3][0]];
     state->mx[2][1] = sbox[state->mx[3][1]];
     state->mx[3][1] = sbox[tmp];
 
@@ -106,31 +109,25 @@ static void mix_columns(aes128_state_t *state)
 }
 
 
-static void schedule_and_add_key(aes128_state_t *state, void *kmctx, int round)
+static void schedule_key(aes128_state_t *state, void *kmctx, int rcon)
 {
-    uint32_t k3 = aes128_load_km(kmctx, 3);
+    uint32_t tmp = aes128_load_km(kmctx, 3);
 
-    uint32_t tmp = rotr32(k3, 8);
-
-    tmp =  ((sbox[(tmp >>  0) & 0xFF] << 0) ^ rconrev[round])
-         |  (sbox[(tmp >>  8) & 0xFF] << 8)
-         |  (sbox[(tmp >> 16) & 0xFF] << 16)
-         |  (sbox[(tmp >> 24) & 0xFF] << 24);
+    tmp =  ((sbox[(tmp >>  8) & 0xFF] << 0) ^ rcon)
+         |  (sbox[(tmp >> 16) & 0xFF] << 8)
+         |  (sbox[(tmp >> 24) & 0xFF] << 16)
+         |  (sbox[(tmp >>  0) & 0xFF] << 24);
 
     tmp ^= aes128_load_km(kmctx, 0);
-    state->cols[0] ^= tmp;
     aes128_save_km(kmctx, 0, tmp);
 
     tmp ^= aes128_load_km(kmctx, 1);
-    state->cols[1] ^= tmp;
     aes128_save_km(kmctx, 1, tmp);
 
     tmp ^= aes128_load_km(kmctx, 2);
-    state->cols[2] ^= tmp;
     aes128_save_km(kmctx, 2, tmp);
 
-    tmp ^= k3;
-    state->cols[3] ^= tmp;
+    tmp ^= aes128_load_km(kmctx, 3);
     aes128_save_km(kmctx, 3, tmp);
 }
 
@@ -149,28 +146,31 @@ void aes128_encrypt_ecb(void *kmctx, uint8_t buf[16])
     aes128_state_t *state = (aes128_state_t *)(void *)buf;
 
     // copy key
-    uint32_t tmp;
-    tmp = aes128_load_km(kmctx, 4);
-    state->cols[0] ^= tmp;
-    aes128_save_km(kmctx, 0, tmp);
+    aes128_save_km(kmctx, 0, aes128_load_km(kmctx, 4));
+    aes128_save_km(kmctx, 1, aes128_load_km(kmctx, 5));
+    aes128_save_km(kmctx, 2, aes128_load_km(kmctx, 6));
+    aes128_save_km(kmctx, 3, aes128_load_km(kmctx, 7));
 
-    tmp = aes128_load_km(kmctx, 5);
-    state->cols[1] ^= tmp;
-    aes128_save_km(kmctx, 1, tmp);
+    int rcon = 0x01;
 
-    tmp = aes128_load_km(kmctx, 6);
-    state->cols[2] ^= tmp;
-    aes128_save_km(kmctx, 2, tmp);
-
-    tmp = aes128_load_km(kmctx, 7);
-    state->cols[3] ^= tmp;
-    aes128_save_km(kmctx, 3, tmp);
-
-    for (int round = 10 - 1; round >= 0; round--)
+    while (1)
     {
-        shift_and_subst(state);
-        if (round)
-            mix_columns(state);
-        schedule_and_add_key(state, kmctx, round);
+        addkey_shift_and_subst(state, kmctx);
+        schedule_key(state, kmctx, rcon);
+
+        if (rcon == 0x36)
+            break;
+
+        mix_columns(state);
+
+        if (rcon == 0x80)
+            rcon = 0x1B;
+        else
+            rcon <<= 1;
     }
+
+    state->cols[0] ^= aes128_load_km(kmctx, 0);
+    state->cols[1] ^= aes128_load_km(kmctx, 1);
+    state->cols[2] ^= aes128_load_km(kmctx, 2);
+    state->cols[3] ^= aes128_load_km(kmctx, 3);
 }
