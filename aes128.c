@@ -30,7 +30,6 @@ static inline uint32_t rotr32(uint32_t x, int r)
 
 typedef union
 {
-    uint8_t mx[4][4];
     uint32_t cols[4];
 } aes128_state_t;
 
@@ -62,34 +61,32 @@ static void addkey_shift_and_subst(aes128_state_t *state, void *kmctx)
     int tmp;
 
     state->cols[0] ^= aes128_load_km(kmctx, 0);
-    state->mx[0][0] = sbox[state->mx[0][0]];
-    tmp = state->mx[0][1];
-
     state->cols[1] ^= aes128_load_km(kmctx, 1);
-    state->mx[1][0] = sbox[state->mx[1][0]];
-    state->mx[0][1] = sbox[state->mx[1][1]];
-
     state->cols[2] ^= aes128_load_km(kmctx, 2);
-    state->mx[2][0] = sbox[state->mx[2][0]];
-    state->mx[1][1] = sbox[state->mx[2][1]];
-
     state->cols[3] ^= aes128_load_km(kmctx, 3);
-    state->mx[3][0] = sbox[state->mx[3][0]];
-    state->mx[2][1] = sbox[state->mx[3][1]];
-    state->mx[3][1] = sbox[tmp];
 
-    tmp = state->mx[0][2];
-    state->mx[0][2] = sbox[state->mx[2][2]];
-    state->mx[2][2] = sbox[tmp];
-    tmp = state->mx[1][2];
-    state->mx[1][2] = sbox[state->mx[3][2]];
-    state->mx[3][2] = sbox[tmp];
+    uint32_t col0 = state->cols[0];
+    uint32_t col1 = state->cols[1];
+    uint32_t col2 = state->cols[2];
+    uint32_t col3 = state->cols[3];
 
-    tmp = state->mx[3][3];
-    state->mx[3][3] = sbox[state->mx[2][3]];
-    state->mx[2][3] = sbox[state->mx[1][3]];
-    state->mx[1][3] = sbox[state->mx[0][3]];
-    state->mx[0][3] = sbox[tmp];
+    #define c2r(a, i, j) (sbox[((a) >> ((i) * 8)) & 0xFF] << ((j) * 8))
+
+    uint32_t row0 = c2r(col0, 0, 0) | c2r(col1, 0, 1) | c2r(col2, 0, 2) | c2r(col3, 0, 3);
+    uint32_t row1 = c2r(col1, 1, 0) | c2r(col2, 1, 1) | c2r(col3, 1, 2) | c2r(col0, 1, 3);
+    uint32_t row2 = c2r(col2, 2, 0) | c2r(col3, 2, 1) | c2r(col0, 2, 2) | c2r(col1, 2, 3);
+    uint32_t row3 = c2r(col3, 3, 0) | c2r(col0, 3, 1) | c2r(col1, 3, 2) | c2r(col2, 3, 3);
+
+    #undef c2r
+
+    #define r2c(a, i, j) ((((a) >> ((i) * 8)) & 0xFF) << ((j) * 8))
+
+    state->cols[0] = r2c(row0, 0,  0) | r2c(row1, 0, 1) | r2c(row2, 0, 2) | r2c(row3, 0, 3);
+    state->cols[1] = r2c(row0, 1,  0) | r2c(row1, 1, 1) | r2c(row2, 1, 2) | r2c(row3, 1, 3);
+    state->cols[2] = r2c(row0, 2,  0) | r2c(row1, 2, 1) | r2c(row2, 2, 2) | r2c(row3, 2, 3);
+    state->cols[3] = r2c(row0, 3,  0) | r2c(row1, 3, 1) | r2c(row2, 3, 2) | r2c(row3, 3, 3);
+
+    #undef r2c
 }
 
 
