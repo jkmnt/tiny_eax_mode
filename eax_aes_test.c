@@ -8,35 +8,26 @@
 
 #include "vectors_eax_aes.h"
 
-typedef struct
+static struct
 {
-    uint32_t words[AES128_KMSTORE_NWORDS];
-} aes_kmstore_t;
+    uint32_t words[AES128_NREGS];
+} aes_regs;
 
-static aes_kmstore_t aes_kmstore;
-
-void aes128_save_km(void *ctx, int i, uint32_t w)
+void aes128_streg(int i, uint32_t w)
 {
-    aes_kmstore_t *store = ctx;
-    store->words[i] = w;
+    aes_regs.words[i] = w;
 }
 
-uint32_t aes128_load_km(void *ctx, int i)
+uint32_t aes128_ldreg(int i)
 {
-    const aes_kmstore_t *store = ctx;
-    return store->words[i];
+    return aes_regs.words[i];
 }
 
 void aes_install_key(const uint8_t *key)
 {
-    aes128_set_key(&aes_kmstore, key);
+    aes128_set_key(key);
 }
 
-
-void print64(uint64_t q)
-{
-    printf("%08x%08x", (uint32_t)(q >> 32), (uint32_t)q);
-}
 
 void print_dump(const void *data, int len)
 {
@@ -57,7 +48,9 @@ void print_dump(const void *data, int len)
 
 extern void eax128_cipher(void *ctx, uint8_t block[16])
 {
-    aes128_encrypt_ecb(&aes_kmstore, block);
+    aes128_set_data(block);
+    aes128_encrypt();
+    aes128_get_data(block);
 }
 
 static void test_vector(const testvector_t *v)
@@ -116,7 +109,7 @@ static void test_ctr_ovf(void)
     eax128_ctr_t ctr;
 
     aes_install_key(key);
-    eax128_ctr_init(&ctr, &aes_kmstore, nonce);
+    eax128_ctr_init(&ctr, NULL, nonce);
 
     for (int i = 0; i < sizeof(pt); i++)
     {

@@ -3,17 +3,26 @@
    Derived from https://github.com/kokke/tiny-AES-c and other public domain sources.
 
    This implementation is quite special.
-   It tries hard to do all the processing on processor registers
-   and avoid using RAM at all, even stack. The only thing in RAM is the (in-place) mutated 16-byte
-   encryption state.
 
-   The key material is loaded on demand, keys are not pre-scheduled but expanded in place.
-   The user is resposible for providing aes128_load_km/aes128_save_km accessors to 8 words
-   of the key storage.
+   It tries hard to do all the processing on processor registers and avoid using RAM at all, even stack.
 
-   The storage may be implemented in some hardware registers (think TRESOR of linux-x86).
+   The key material and state are in some store.
+   Store is word-accessed via aes128_streg/aes128_ldreg user-defined functions.
+   It's expected the store would be implemented in some hardware registers (think TRESOR of linux-x86).
 
-   It's assumed the architecture is little-endian and CPU handles unaligned access just fine.
+   The flow is:
+    1) aes128_set_key(key)
+    2) aes128_set_data(plaintext)
+    3) aes128_encrypt()
+    4) ciphertext = aes128_get_data(plaintext)
+    5) optionally clear store
+
+   NOTES:
+    Since the store is singleton, only one AES instance may be running at time.
+    No thread-safety, of course.
+    Only little-endian mode is supported.
+    It's advised to inspect the resulting assembly to make sure no stack is actually used.
+
 
    Yes, this AES is quite slow :-)
 
@@ -21,18 +30,6 @@
 
 #include <stdint.h>
 #include "aes128.h"
-
-
-static inline uint32_t rotr32(uint32_t x, int r)
-{
-    return(x >> r) | (x << (32 - r));
-}
-
-typedef union
-{
-    uint32_t cols[4];
-} aes128_state_t;
-
 
 static const uint8_t sbox[256] =
 {
@@ -54,117 +51,150 @@ static const uint8_t sbox[256] =
     0x8c, 0xa1, 0x89, 0x0d, 0xbf, 0xe6, 0x42, 0x68, 0x41, 0x99, 0x2d, 0x0f, 0xb0, 0x54, 0xbb, 0x16
 };
 
-
-static void addkey_shift_and_subst(aes128_state_t *state, void *kmctx)
+static inline uint32_t rotr32(uint32_t x, int r)
 {
-    state->cols[0] ^= aes128_load_km(kmctx, AES128_RK0);
-    state->cols[1] ^= aes128_load_km(kmctx, AES128_RK1);
-    state->cols[2] ^= aes128_load_km(kmctx, AES128_RK2);
-    state->cols[3] ^= aes128_load_km(kmctx, AES128_RK3);
-
-    uint32_t col0 = state->cols[0];
-    uint32_t col1 = state->cols[1];
-    uint32_t col2 = state->cols[2];
-    uint32_t col3 = state->cols[3];
-
-    #define c2r(a, i, j) (sbox[((a) >> ((i) * 8)) & 0xFF] << ((j) * 8))
-
-    uint32_t row0 = c2r(col0, 0, 0) | c2r(col1, 0, 1) | c2r(col2, 0, 2) | c2r(col3, 0, 3);
-    uint32_t row1 = c2r(col1, 1, 0) | c2r(col2, 1, 1) | c2r(col3, 1, 2) | c2r(col0, 1, 3);
-    uint32_t row2 = c2r(col2, 2, 0) | c2r(col3, 2, 1) | c2r(col0, 2, 2) | c2r(col1, 2, 3);
-    uint32_t row3 = c2r(col3, 3, 0) | c2r(col0, 3, 1) | c2r(col1, 3, 2) | c2r(col2, 3, 3);
-
-    #undef c2r
-
-    #define r2c(a, i, j) ((((a) >> ((i) * 8)) & 0xFF) << ((j) * 8))
-
-    state->cols[0] = r2c(row0, 0,  0) | r2c(row1, 0, 1) | r2c(row2, 0, 2) | r2c(row3, 0, 3);
-    state->cols[1] = r2c(row0, 1,  0) | r2c(row1, 1, 1) | r2c(row2, 1, 2) | r2c(row3, 1, 3);
-    state->cols[2] = r2c(row0, 2,  0) | r2c(row1, 2, 1) | r2c(row2, 2, 2) | r2c(row3, 2, 3);
-    state->cols[3] = r2c(row0, 3,  0) | r2c(row1, 3, 1) | r2c(row2, 3, 2) | r2c(row3, 3, 3);
-
-    #undef r2c
+    return(x >> r) | (x << (32 - r));
 }
 
+static inline uint32_t u8to32le(const uint8_t *b)
+{
+    return (b[0] << 0) | (b[1] << 8) | (b[2] << 16) | (b[3] << 24);
+}
 
-static uint32_t xtime32(uint32_t x)
+static inline void u32to8le(uint8_t *b, uint32_t w)
+{
+    b[0] = w;
+    b[1] = w >> 8;
+    b[2] = w >> 16;
+    b[3] = w >> 24;
+}
+
+// xb stands for 'extract byte'
+static inline uint32_t xb(uint32_t w, uint32_t s, int b)
+{
+    return (w >> (s * 8) & 0xFF) << (b * 8);
+}
+
+// xbsb stands for 'extract byte, process via sbox'
+static inline uint32_t xbsb(uint32_t w, uint32_t s, int d)
+{
+    return sbox[(w >> (s * 8)) & 0xFF] << (d * 8);
+}
+
+static inline uint32_t xtime32(uint32_t x)
 {
     // constant-time to prevent the timing attacks
-    return ((x << 1) & 0xFEFEFEFE) ^ (((x >> 7) & 0x01010101) * 0x1B);
+    return ((x << 1) & 0xFEFEFEFEU) ^ (((x >> 7) & 0x01010101U) * 0x1BU);
 }
 
-static void mix_columns(aes128_state_t *state)
+static inline uint32_t mix_column(uint32_t col)
 {
-    for (int i = 0; i < 4; ++i)
+    return xtime32(col ^ rotr32(col, 8)) ^ rotr32(col, 8) ^ rotr32(col, 16) ^ rotr32(col, 24);
+}
+
+static void do_round(int rcon)
+{
+    uint32_t rk3 = aes128_ldreg(AES128_RK3);
+    uint32_t tmp = rk3;
+
+    tmp =  (xbsb(tmp, 1, 0) ^ rcon) | xbsb(tmp, 2, 1) | xbsb(tmp, 3, 2) | xbsb(tmp, 0, 3);
+
+    uint32_t c0 = aes128_ldreg(AES128_S0);
+    uint32_t c1 = aes128_ldreg(AES128_S1);
+    uint32_t c2 = aes128_ldreg(AES128_S2);
+    uint32_t c3 = aes128_ldreg(AES128_S3);
+
+    uint32_t r0 = xbsb(c0, 0, 0) | xbsb(c1, 0, 1) | xbsb(c2, 0, 2) | xbsb(c3, 0, 3);
+    uint32_t r1 = xbsb(c1, 1, 0) | xbsb(c2, 1, 1) | xbsb(c3, 1, 2) | xbsb(c0, 1, 3);
+    uint32_t r2 = xbsb(c2, 2, 0) | xbsb(c3, 2, 1) | xbsb(c0, 2, 2) | xbsb(c1, 2, 3);
+    uint32_t r3 = xbsb(c3, 3, 0) | xbsb(c0, 3, 1) | xbsb(c1, 3, 2) | xbsb(c2, 3, 3);
+
+    c0 = xb(r0, 0,  0) | xb(r1, 0, 1) | xb(r2, 0, 2) | xb(r3, 0, 3);
+    c1 = xb(r0, 1,  0) | xb(r1, 1, 1) | xb(r2, 1, 2) | xb(r3, 1, 3);
+    c2 = xb(r0, 2,  0) | xb(r1, 2, 1) | xb(r2, 2, 2) | xb(r3, 2, 3);
+    c3 = xb(r0, 3,  0) | xb(r1, 3, 1) | xb(r2, 3, 2) | xb(r3, 3, 3);
+
+    if (rcon != 0x36)
     {
-        uint32_t col = state->cols[i];
-        state->cols[i] = xtime32(col ^ rotr32(col, 8)) ^ rotr32(col, 8) ^ rotr32(col, 16) ^ rotr32(col, 24);
+        c0 = mix_column(c0);
+        c1 = mix_column(c1);
+        c2 = mix_column(c2);
+        c3 = mix_column(c3);
     }
+
+    tmp ^= aes128_ldreg(AES128_RK0);
+    aes128_streg(AES128_RK0, tmp);
+    aes128_streg(AES128_S0, c0 ^ tmp);
+
+    tmp ^= aes128_ldreg(AES128_RK1);
+    aes128_streg(AES128_RK1, tmp);
+    aes128_streg(AES128_S1, c1 ^ tmp);
+
+    tmp ^= aes128_ldreg(AES128_RK2);
+    aes128_streg(AES128_RK2, tmp);
+    aes128_streg(AES128_S2, c2 ^ tmp);
+
+    tmp ^= rk3;
+    aes128_streg(AES128_RK3, tmp);
+    aes128_streg(AES128_S3, c3 ^ tmp);
 }
 
 
-static void schedule_key(aes128_state_t *state, void *kmctx, int rcon)
+void aes128_set_key(const uint8_t key[16])
 {
-    uint32_t tmp = aes128_load_km(kmctx, AES128_RK3);
-
-    tmp =  ((sbox[(tmp >>  8) & 0xFF] << 0) ^ rcon)
-         |  (sbox[(tmp >> 16) & 0xFF] << 8)
-         |  (sbox[(tmp >> 24) & 0xFF] << 16)
-         |  (sbox[(tmp >>  0) & 0xFF] << 24);
-
-    tmp ^= aes128_load_km(kmctx, AES128_RK0);
-    aes128_save_km(kmctx, AES128_RK0, tmp);
-
-    tmp ^= aes128_load_km(kmctx, AES128_RK1);
-    aes128_save_km(kmctx, AES128_RK1, tmp);
-
-    tmp ^= aes128_load_km(kmctx, AES128_RK2);
-    aes128_save_km(kmctx, AES128_RK2, tmp);
-
-    tmp ^= aes128_load_km(kmctx, AES128_RK3);
-    aes128_save_km(kmctx, AES128_RK3, tmp);
+    aes128_streg(AES128_K0, u8to32le(&key[0]));
+    aes128_streg(AES128_K1, u8to32le(&key[4]));
+    aes128_streg(AES128_K2, u8to32le(&key[8]));
+    aes128_streg(AES128_K3, u8to32le(&key[12]));
 }
 
-void aes128_set_key(void *kmctx, const uint8_t key[16])
+void aes128_set_data(const uint8_t src[16])
 {
-    const uint32_t *k = (const uint32_t *)(void *)key;
-
-    aes128_save_km(kmctx, AES128_K0, k[0]);
-    aes128_save_km(kmctx, AES128_K1, k[1]);
-    aes128_save_km(kmctx, AES128_K2, k[2]);
-    aes128_save_km(kmctx, AES128_K3, k[3]);
+    aes128_streg(AES128_S0, u8to32le(&src[0]));
+    aes128_streg(AES128_S1, u8to32le(&src[4]));
+    aes128_streg(AES128_S2, u8to32le(&src[8]));
+    aes128_streg(AES128_S3, u8to32le(&src[12]));
 }
 
-void aes128_encrypt_ecb(void *kmctx, uint8_t buf[16])
+void aes128_get_data(uint8_t dst[16])
 {
-    aes128_state_t *state = (aes128_state_t *)(void *)buf;
+    u32to8le(&dst[0], aes128_ldreg(AES128_S0));
+    u32to8le(&dst[4], aes128_ldreg(AES128_S1));
+    u32to8le(&dst[8], aes128_ldreg(AES128_S2));
+    u32to8le(&dst[12], aes128_ldreg(AES128_S3));
+}
 
-    // copy key
-    aes128_save_km(kmctx, AES128_RK0, aes128_load_km(kmctx, AES128_K0));
-    aes128_save_km(kmctx, AES128_RK1, aes128_load_km(kmctx, AES128_K1));
-    aes128_save_km(kmctx, AES128_RK2, aes128_load_km(kmctx, AES128_K2));
-    aes128_save_km(kmctx, AES128_RK3, aes128_load_km(kmctx, AES128_K3));
+void aes128_encrypt(void)
+{
+    uint32_t tmp;
+    tmp = aes128_ldreg(AES128_K0);
+    aes128_streg(AES128_RK0, tmp);
+    aes128_streg(AES128_S0, aes128_ldreg(AES128_S0) ^ tmp);
+
+    tmp = aes128_ldreg(AES128_K1);
+    aes128_streg(AES128_RK1, tmp);
+    aes128_streg(AES128_S1, aes128_ldreg(AES128_S1) ^ tmp);
+
+    tmp = aes128_ldreg(AES128_K2);
+    aes128_streg(AES128_RK2, tmp);
+    aes128_streg(AES128_S2, aes128_ldreg(AES128_S2) ^ tmp);
+
+    tmp = aes128_ldreg(AES128_K3);
+    aes128_streg(AES128_RK3, tmp);
+    aes128_streg(AES128_S3, aes128_ldreg(AES128_S3) ^ tmp);
 
     int rcon = 0x01;
 
     while (1)
     {
-        addkey_shift_and_subst(state, kmctx);
-        schedule_key(state, kmctx, rcon);
+        do_round(rcon);
 
         if (rcon == 0x36)
             break;
-
-        mix_columns(state);
 
         if (rcon == 0x80)
             rcon = 0x1B;
         else
             rcon <<= 1;
     }
-
-    state->cols[0] ^= aes128_load_km(kmctx, AES128_RK0);
-    state->cols[1] ^= aes128_load_km(kmctx, AES128_RK1);
-    state->cols[2] ^= aes128_load_km(kmctx, AES128_RK2);
-    state->cols[3] ^= aes128_load_km(kmctx, AES128_RK3);
 }
