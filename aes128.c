@@ -164,6 +164,24 @@ void aes128_get_data(uint8_t dst[16])
     u32to8le(&dst[12], aes128_ldreg(AES128_S3));
 }
 
+void aes128_clear_data(void)
+{
+    aes128_streg(AES128_S0, 0);
+    aes128_streg(AES128_S1, 0);
+    aes128_streg(AES128_S2, 0);
+    aes128_streg(AES128_S3, 0);
+}
+
+
+void aes128_clear_key(void)
+{
+    aes128_streg(AES128_K0, 0);
+    aes128_streg(AES128_K1, 0);
+    aes128_streg(AES128_K2, 0);
+    aes128_streg(AES128_K3, 0);
+}
+
+
 void aes128_encrypt(void)
 {
     uint32_t tmp;
@@ -197,4 +215,10 @@ void aes128_encrypt(void)
         else
             rcon <<= 1;
     }
+
+    // clear round key
+    aes128_streg(AES128_RK0, 0);
+    aes128_streg(AES128_RK1, 0);
+    aes128_streg(AES128_RK2, 0);
+    aes128_streg(AES128_RK3, 0);
 }

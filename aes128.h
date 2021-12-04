@@ -31,6 +31,9 @@ void aes128_set_key(const uint8_t key[16]);
 void aes128_set_data(const uint8_t src[16]);
 void aes128_get_data(uint8_t dst[16]);
 
+void aes128_clear_key(void);
+void aes128_clear_data(void);
+
 void aes128_encrypt(void);
 
 #endif
