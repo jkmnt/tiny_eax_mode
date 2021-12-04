@@ -7,11 +7,11 @@
 
 #define USE_CUSTOM_MATH128 0    // use user-coded 128bit math (assembly or something)
 
-extern void _add128be_32le(eax128_block_t *dst, const eax128_block_t *a, uint32_t inc);
-extern void _add128le_32le(eax128_block_t *dst, const eax128_block_t *a, uint32_t inc);
-extern void _gf_double_128be(eax128_block_t *dst, const eax128_block_t *src, int n);
-extern void _gf_double_128le(eax128_block_t *dst, const eax128_block_t *src, int n);
-extern void _xor128(eax128_block_t *dst, const eax128_block_t *a, const eax128_block_t *b);
+extern void _add128be_32le(uint32_t dst[4], const uint32_t a[4], uint32_t inc);
+extern void _add128le_32le(uint32_t dst[4], const uint32_t a[4], uint32_t inc);
+extern void _gf_double_128be(uint32_t dst[4], const uint32_t src[4], int n);
+extern void _gf_double_128le(uint32_t dst[4], const uint32_t src[4], int n);
+extern void _xor128(uint32_t dst[4], const uint32_t a[4], const uint32_t b[4]);
 
 static uint64_t byterev64(uint64_t a)
 {
@@ -30,7 +30,7 @@ static void gf_double(eax128_block_t *dst, eax128_block_t *src, int n)
 {
     if (USE_CUSTOM_MATH128)
     {
-        BIG_TAIL ? _gf_double_128be(dst, src, n) : _gf_double_128le(dst, src, n);
+        BIG_TAIL ? _gf_double_128be(dst->w, src->w, n) : _gf_double_128le(dst->w, src->w, n);
         return;
     }
 
@@ -53,7 +53,7 @@ static void add_ctr(eax128_block_t *dst, const eax128_block_t *a, uint32_t inc)
 {
     if (USE_CUSTOM_MATH128)
     {
-        BIG_CTR ? _add128be_32le(dst, a, inc) : _add128le_32le(dst, a, inc);
+        BIG_CTR ? _add128be_32le(dst->w, a->w, inc) : _add128le_32le(dst->w, a->w, inc);
         return;
     }
 
@@ -74,7 +74,7 @@ static void xor128(eax128_block_t *dst, const eax128_block_t *a, const eax128_bl
 {
     if (USE_CUSTOM_MATH128)
     {
-        _xor128(dst, a, b);
+        _xor128(dst->w, a->w, b->w);
         return;
     }
 
