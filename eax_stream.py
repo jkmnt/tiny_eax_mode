@@ -2,7 +2,7 @@ from eax import gf_double, xorstrings
 
 # these classes simulate the way it could be done in C in online mode, byte by byte
 class OMAC_stream:
-    def __init__(self, cfg, key, k):
+    def __init__(self, cfg, key, tweak):
         enc = cfg.ECB(key)
         L = enc.run(bytes([0] * cfg.BLOCKSIZE))
         L_int = int.from_bytes(L, cfg.ENDIAN, signed=False)
@@ -15,7 +15,7 @@ class OMAC_stream:
         self.L4 = L4_int.to_bytes(cfg.BLOCKSIZE, cfg.ENDIAN)
 
         self.enc = enc
-        self.readyblock = bytes([0] * (cfg.BLOCKSIZE - 1) + [k])
+        self.readyblock = int.to_bytes(tweak, cfg.BLOCKSIZE, 'big')
         self.mac = bytes(cfg.BLOCKSIZE)
         self.buf = bytes([])
 

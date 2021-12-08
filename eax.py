@@ -37,7 +37,7 @@ def ctr(cfg, key, nonce, data):
         cnt += 1
     return out
 
-def omac(cfg, key, data, k):
+def omac(cfg, key, data, tweak):
     enc = cfg.ECB(key)
 
     L = enc.run(bytes([0] * cfg.BLOCKSIZE))
@@ -46,14 +46,13 @@ def omac(cfg, key, data, k):
     L2_int = gf_double(L_int, cfg.BLOCKSIZE)
     L4_int = gf_double(L2_int, cfg.BLOCKSIZE)
 
-    import binascii
-
     L2 = L2_int.to_bytes(cfg.BLOCKSIZE, cfg.ENDIAN)
     L4 = L4_int.to_bytes(cfg.BLOCKSIZE, cfg.ENDIAN)
 
-#   print(binascii.hexlify(L2))
+    # always big so the tweak is last byte
+    tweakbytes = int.to_bytes(tweak, cfg.BLOCKSIZE, 'big')
 
-    data = bytes([0] * (cfg.BLOCKSIZE - 1) + [k]) + data
+    data = tweakbytes + data
     data = bytearray(data)
 
     if len(data) % cfg.BLOCKSIZE:
